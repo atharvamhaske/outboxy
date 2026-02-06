@@ -39,27 +39,37 @@ func processOutboxMessages(ctx context.Context, pool *pgxpool.Pool, redisClient 
 	defer rows.Close()
 
 	var msg OutboxMsg
-	if rows.Next() {
-		if err := rows.Scan(&msg.ID, &msg.Topic, &msg.Message); err != nil {
-			return err
-		}
 
-		log.Printf("Publishing messages %s to channel %s", msg.ID, msg.Topic)
-
-		if err := redisClient.Publish(ctx, msg.Topic, msg.Message).Err(); err != nil {
-			return err
-		}
-
-		_, err = tx.Exec(ctx, "UPDATE outbox SET state ='processed', processed_at = now() WHERE id = $1 ", msg.ID)
-		if err != nil {
-			return err
-		}
-
-		log.Printf("Marked message %s as processed", msg.ID)
-
-		return tx.Commit(ctx)
+	// No pending messages
+	if !rows.Next() {
+		return nil
 	}
-	return nil
+
+	if err := rows.Scan(&msg.ID, &msg.Topic, &msg.Message); err != nil {
+		return err
+	}
+
+	// We must fully close the rows before issuing another query on the same
+	// transaction connection, otherwise pgx reports "conn busy".
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	rows.Close()
+
+	log.Printf("Publishing messages %s to channel %s", msg.ID, msg.Topic)
+
+	if err := redisClient.Publish(ctx, msg.Topic, msg.Message).Err(); err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, "UPDATE outbox SET state ='processed', processed_at = now() WHERE id = $1 ", msg.ID)
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Marked message %s as processed", msg.ID)
+
+	return tx.Commit(ctx)
 }
 
 func main() {
