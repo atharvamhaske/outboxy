@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"log"
-
+	"os"
 	"time"
 
-	"cloud.google.com/go/pubsub"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 type OutboxMsg struct {
@@ -17,7 +17,7 @@ type OutboxMsg struct {
 	Message []byte
 }
 
-func processOutboxMessages(ctx context.Context, pool *pgxpool.Pool, pubsubClient *pubsub.Client) error {
+func processOutboxMessages(ctx context.Context, pool *pgxpool.Pool, redisClient *redis.Client) error {
 	tx, err := pool.Begin(ctx)
 	defer tx.Rollback(ctx)
 	if err != nil {
@@ -26,12 +26,12 @@ func processOutboxMessages(ctx context.Context, pool *pgxpool.Pool, pubsubClient
 
 	// lock the next pending message so other dispatcher instances don't grab it.
 	rows, err := tx.Query(ctx,
-	`SELECT id, topic, message
-	FROM outbox
-	WHERE state = 'pending'
-	ORDER BY created_at
-	LIMIT 1
-	FOR UPDATE SKIP LOCKED`)
+		`SELECT id, topic, message
+	     FROM outbox
+	     WHERE state = 'pending'
+	     ORDER BY created_at
+	     LIMIT 1
+	     FOR UPDATE SKIP LOCKED`)
 
 	if err != nil {
 		return err
@@ -44,16 +44,12 @@ func processOutboxMessages(ctx context.Context, pool *pgxpool.Pool, pubsubClient
 			return err
 		}
 
-		log.Printf("Publishing messages %s to topic %s", msg.ID, msg.Topic)
+		log.Printf("Publishing messages %s to channel %s", msg.ID, msg.Topic)
 
-		result := pubsubClient.Topic(msg.Topic).Publish(ctx, &pubsub.Message{
-			Data: msg.Message,
-		})
-
-		_, err := result.Get(ctx)
-		if err != nil {
+		if err := redisClient.Publish(ctx, msg.Topic, msg.Message).Err(); err != nil {
 			return err
 		}
+
 		_, err = tx.Exec(ctx, "UPDATE outbox SET state ='processed', processed_at = now() WHERE id = $1 ", msg.ID)
 		if err != nil {
 			return err
@@ -67,17 +63,38 @@ func processOutboxMessages(ctx context.Context, pool *pgxpool.Pool, pubsubClient
 }
 
 func main() {
-	// TODO: initialize actual Postgres and Pubsub connections
-	var (
-		pool         *pgxpool.Pool
-		pubsubClient *pubsub.Client
-	)
+	ctx := context.Background()
+
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL is not set")
+	}
+
+	pool, err := pgxpool.New(ctx, dbURL)
+	if err != nil {
+		log.Fatalf("Unable to create connection pool: %v", err)
+	}
+	defer pool.Close()
+
+	var redisClient *redis.Client
+	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
+		opt, err := redis.ParseURL(redisURL)
+		if err != nil {
+			log.Fatalf("Invalid REDIS_URL: %v", err)
+		}
+		redisClient = redis.NewClient(opt)
+	} else {
+		redisClient = redis.NewClient(&redis.Options{
+			Addr: "localhost:6379",
+		})
+	}
+	defer redisClient.Close()
 
 	// feel free to use another interval
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for range ticker.C {
-		if err := processOutboxMessages(context.Background(), pool, pubsubClient); err != nil {
+		if err := processOutboxMessages(ctx, pool, redisClient); err != nil {
 			log.Printf("Error processing outbox: %v", err)
 		}
 	}
