@@ -1,11 +1,14 @@
 ## Outboxy – Outbox Pattern Demo (Orders + Dispatcher)
 
-This project is a minimal Go implementation of the **outbox pattern** for an e‑commerce style engine:
+This project is a minimal Go implementation of the **outbox pattern** for an e‑commerce style engine.  
+It has two small Go services:
 
-- `orders`: writes orders and corresponding outbox records in a single DB transaction.
-- `dispatcher`: polls the outbox table and publishes events to **Redis pub/sub**.
+- `orders` writes orders and their corresponding outbox records in a single Postgres transaction.
+- `dispatcher` continuously polls the outbox table and publishes events to **Redis pub/sub**.
 
-Both services are plain Go binaries in this module.
+Both services are built as plain Go binaries in this module.
+
+## High Level Architecture
 
 ![Outboxy architecture](./outboxy.png)
 
