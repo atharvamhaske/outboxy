@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: outboxy
+      POSTGRES_PASSWORD: outboxy
+      POSTGRES_DB: outboxy
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  dispatcher:
+    build: .
+    image: outboxy-app
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgres://outboxy:outboxy@postgres:5432/outboxy?sslmode=disable
+      REDIS_URL: redis://redis:6379
+    command: ["dispatcher"]
+
+  orders-once:
+    build: .
+    image: outboxy-app
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      DATABASE_URL: postgres://outboxy:outboxy@postgres:5432/outboxy?sslmode=disable
+    command: ["orders"]
+    restart: "no"
+
+volumes:
+  pgdata:
+
+

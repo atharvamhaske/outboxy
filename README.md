@@ -150,27 +150,46 @@ From the project root (`/home/atharvamhaske/Projects/outboxy`):
 
 ---
 
-## High-level flow (outbox pattern)
+## Docker / Docker Compose
 
+You can also run the whole example using Docker.
+
+### Prerequisites
+
+- Docker
+- Docker Compose (or `docker compose` with recent Docker)
+
+### Start the stack
+
+From the project root:
+
+```bash
+docker compose up --build
 ```
 
-    A[Client or Checkout UI] --> B[Orders service]
+This starts:
 
-    B --> C[Begin DB transaction]
-    C --> D[Insert order record]
-    C --> E[Insert outbox record pending]
+- `postgres` with database `outboxy`
+- `redis`
+- `dispatcher` service polling the outbox table and publishing to Redis
+- `orders-once` which runs once to create a sample order and outbox record
 
-    D --> F[Postgres orders table]
-    E --> G[Postgres outbox table pending]
+### Inspect behaviour
 
-    H[Dispatcher service] --> I[Poll pending outbox every 1s<br/>FOR UPDATE SKIP LOCKED]
+- View logs:
 
-    I -->|row found| J[Read outbox row]
-    J --> K[Publish event to Redis]
-    K --> L[Redis PubSub orders created]
-    L --> M[Downstream consumers<br/>inventory email analytics]
+  ```bash
+  docker compose logs -f dispatcher
+  docker compose logs -f orders-once
+  ```
 
-    J --> N[Mark outbox as processed]
-    N --> O[Postgres outbox table processed]
+- Subscribe to the Redis channel from your host:
 
-    I -->|no row| P[Wait for next tick]
+  ```bash
+  redis-cli -h localhost -p 6379
+  SUBSCRIBE orders.created
+  ```
+
+You should see an `orders.created` event published when `orders-once` runs, while the dispatcher marks the outbox record as processed.
+
+
