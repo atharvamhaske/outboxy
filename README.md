@@ -152,21 +152,26 @@ From the project root (`/home/atharvamhaske/Projects/outboxy`):
 
 ```mermaid
 flowchart LR
-    A[Client / Checkout UI] --> B[Orders service]
+    A[Client / Checkout UI] --> B[Orders service (orders/main.go)]
 
     B --> C[Begin DB transaction]
-    C --> D[INSERT INTO orders]
-    C --> E[INSERT INTO outbox\n(topic='orders.created', state='pending')]
-    D --> F[(Postgres: orders)]
-    E --> G[(Postgres: outbox)]
+    C --> D[Insert into orders table]
+    C --> E[Insert into outbox table (pending)]
 
-    H[Dispatcher service] --> I[SELECT pending outbox row\nFOR UPDATE SKIP LOCKED]
-    I -->|row found| J[Publish to Redis channel = topic]
-    J --> K[(Redis pub/sub\nchannel 'orders.created')]
-    K --> L[Downstream consumers\n(e.g. inventory, email, analytics)]
+    D --> F[(Postgres orders table)]
+    E --> G[(Postgres outbox table - pending)]
 
-    I --> M[UPDATE outbox\nSET state='processed']
-    M --> G
+    H[Dispatcher service (dispatcher/main.go)] --> I[Every 1s select pending outbox row with FOR UPDATE SKIP LOCKED LIMIT 1]
+
+    I -->|row found| J[Scan row into OutboxMsg]
+    J --> K[Publish message to Redis channel]
+    K --> L[(Redis PubSub channel orders_created)]
+    L --> M[Downstream consumers: inventory, email, analytics]
+
+    J --> N[Update outbox row to processed]
+    N --> O[(Postgres outbox table - processed)]
+
+    I -->|no row| P[No-op, wait for next tick]
 ```
 
 
