@@ -150,28 +150,27 @@ From the project root (`/home/atharvamhaske/Projects/outboxy`):
 
 ## High‑level flow (outbox pattern)
 
+## High-level flow (outbox pattern)
+
 ```mermaid
 flowchart LR
-    A["Client / Checkout UI"] --> B["Orders service"]
+    A[Client or Checkout UI] --> B[Orders service]
 
     B --> C[Begin DB transaction]
-    C --> D[Insert into orders table]
-    C --> E[Insert into outbox table (pending)]
+    C --> D[Insert order record]
+    C --> E[Insert outbox record pending]
 
-    D --> F["Postgres orders table"]
-    E --> G["Postgres outbox table - pending"]
+    D --> F[Postgres orders table]
+    E --> G[Postgres outbox table pending]
 
-    H["Dispatcher service"] --> I["Every 1s select pending outbox row with FOR UPDATE SKIP LOCKED LIMIT 1"]
+    H[Dispatcher service] --> I[Poll pending outbox every 1s<br/>FOR UPDATE SKIP LOCKED]
 
-    I -->|row found| J[Scan row into OutboxMsg]
-    J --> K["Publish message to Redis channel"]
-    K --> L["Redis PubSub channel orders_created"]
-    L --> M["Downstream consumers: inventory, email, analytics"]
+    I -->|row found| J[Read outbox row]
+    J --> K[Publish event to Redis]
+    K --> L[Redis PubSub orders created]
+    L --> M[Downstream consumers<br/>inventory email analytics]
 
-    J --> N[Update outbox row to processed]
-    N --> O["Postgres outbox table - processed"]
+    J --> N[Mark outbox as processed]
+    N --> O[Postgres outbox table processed]
 
-    I -->|no row| P["No-op, wait for next tick"]
-```
-
-
+    I -->|no row| P[Wait for next tick]
