@@ -148,8 +148,6 @@ From the project root (`/home/atharvamhaske/Projects/outboxy`):
 
 ---
 
-## High‑level flow (outbox pattern)
-
 ## High-level flow (outbox pattern)
 
 ```mermaid
