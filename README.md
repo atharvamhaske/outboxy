@@ -7,6 +7,8 @@ This project is a minimal Go implementation of the **outbox pattern** for an eâ€
 
 Both services are plain Go binaries in this module.
 
+![Outboxy architecture](./outboxy.png)
+
 ---
 
 ## Components
@@ -150,8 +152,8 @@ From the project root (`/home/atharvamhaske/Projects/outboxy`):
 
 ## High-level flow (outbox pattern)
 
-```mermaid
-flowchart LR
+```
+
     A[Client or Checkout UI] --> B[Orders service]
 
     B --> C[Begin DB transaction]
