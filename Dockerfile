@@ -23,7 +23,8 @@ COPY --from=builder /out/dispatcher /usr/local/bin/dispatcher
 
 ENV PATH="/usr/local/bin:${PATH}"
 
-# Default to running the orders service; override in docker-compose for dispatcher
-ENTRYPOINT ["orders"]
+# Default command runs the orders service; docker-compose overrides this for dispatcher
+ENTRYPOINT []
+CMD ["orders"]
 
 
