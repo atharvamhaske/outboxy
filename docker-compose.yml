@@ -29,7 +29,6 @@ services:
     command: ["dispatcher"]
 
   orders-once:
-    build: .
     image: outboxy-app
     depends_on:
       - postgres
