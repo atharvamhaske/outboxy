@@ -9,6 +9,12 @@ Both services are plain Go binaries in this module.
 
 ![Outboxy architecture](./outboxy.png)
 
+### Screenshots
+
+| Dispatcher worker logs | Redis client subscriber |
+| ---------------------- | ------------------------ |
+| ![Dispatcher demo](./imgs/dispatcher.png) | ![Redis client demo](./imgs/redis-client.png) |
+
 ---
 
 ## Components
